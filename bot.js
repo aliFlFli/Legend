@@ -1,19 +1,19 @@
 /**
- * 🗡 افسانه‌ی گروه (نسخه ۴) — ربات RPG متنی برای گروه‌های تلگرام
+ * 🗡 افسانه‌ی گروه (نسخه ۴.۱) — ربات RPG کامل برای گروه‌های تلگرام
  * ------------------------------------------------------------------
- * قابلیت‌های نسخه ۴:
+ * قابلیت‌ها:
  *  ۱. سیستم کلاس‌ها (جنگجو/جادوگر/تیرانداز)
- *  ۲. فروشگاه با سلاح/زره/معجون
+ *  ۲. فروشگاه با سلاح/زره/معجون (با رتبه‌بندی کیفیت)
  *  ۳. سیستم پیشه‌ها (آهنگر/کیمیاگر/بازرگان/شکارچی)
  *  ۴. سیستم پت (حیوان همراه با قابلیت‌های مختلف)
  *  ۵. سیستم ماموریت‌های روزانه
- *  ۶. سیستم کرفتینگ (ساخت آیتم)
+ *  ۶. سیستم کرفتینگ (ساخت آیتم) — رفع باگ شده
  *  ۷. سیستم گیلد (گروه‌های بازیکنی)
  *  ۸. سیستم PvP (نبرد بین بازیکنان)
  *  ۹. سیستم رتبه‌بندی چندگانه
  *  ۱۰. سیستم جایزه‌ی روزانه با استریک
  *  ۱۱. سیستم حالت سخت
- *  ۱۲. سیستم داستان‌سرایی
+ *  ۱۲. سیستم داستان‌سرایی (۹ فصل کامل)
  *  ۱۳. سیستم بازار آزاد بین بازیکنان
  *  ۱۴. سیستم بهبودی با طلا
  *  ۱۵. سیستم ضربه‌ی بحرانی
@@ -25,7 +25,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { Telegraf, Markup } = require('telegraf');
+const { Telegraf } = require('telegraf');
 require('dotenv').config();
 
 // ============================================================
@@ -45,6 +45,7 @@ const PATHS = {
 function ensureFile(filePath) {
   if (!fs.existsSync(filePath)) {
     fs.writeFileSync(filePath, JSON.stringify({}, null, 2), 'utf-8');
+    console.log(`📁 فایل ${path.basename(filePath)} ایجاد شد.`);
   }
 }
 
@@ -59,10 +60,11 @@ ensureFile(PATHS.MARKET);
 function loadJSON(filePath) {
   try {
     if (fs.existsSync(filePath)) {
-      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      const data = fs.readFileSync(filePath, 'utf-8');
+      return JSON.parse(data);
     }
   } catch (err) {
-    console.error(`⚠️ خطا در خواندن ${filePath}:`, err.message);
+    console.error(`⚠️ خطا در خواندن ${path.basename(filePath)}:`, err.message);
   }
   return {};
 }
@@ -71,7 +73,7 @@ function saveJSON(filePath, data) {
   try {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
-    console.error(`⚠️ خطا در ذخیره ${filePath}:`, err.message);
+    console.error(`⚠️ خطا در ذخیره ${path.basename(filePath)}:`, err.message);
   }
 }
 
@@ -303,12 +305,12 @@ const QUEST_TEMPLATES = [
 ];
 
 // ============================================================
-//                      دستورهای کرفتینگ
+//                      دستورهای کرفتینگ (رفع باگ)
 // ============================================================
 
 const RECIPES = [
   {
-    id: 'r1',
+    id: 'recipe_w3',
     name: '⚔️ شمشیر نقره‌ای',
     result: 'w3',
     ingredients: ['w2', 'w2', 'a2'],
@@ -316,7 +318,7 @@ const RECIPES = [
     desc: '۲ شمشیر آهنی + زره آهنی'
   },
   {
-    id: 'r2',
+    id: 'recipe_w4',
     name: '🟣 تبر حماسی',
     result: 'w4',
     ingredients: ['w3', 'w3', 'a3'],
@@ -324,7 +326,7 @@ const RECIPES = [
     desc: '۲ شمشیر نقره‌ای + زره نقره‌ای'
   },
   {
-    id: 'r3',
+    id: 'recipe_c4',
     name: '✨ سنگ احیا',
     result: 'c4',
     ingredients: ['c1', 'c2', 'c3'],
@@ -332,7 +334,7 @@ const RECIPES = [
     desc: 'معجون سلامتی + قدرت + شانس'
   },
   {
-    id: 'r4',
+    id: 'recipe_a4',
     name: '🐲 زره فلس اژدها',
     result: 'a4',
     ingredients: ['a3', 'a3', 'w5'],
@@ -340,7 +342,7 @@ const RECIPES = [
     desc: '۲ زره نقره‌ای + نیزه اژدها'
   },
   {
-    id: 'r5',
+    id: 'recipe_w6',
     name: '🔥 شمشیر ققنوس',
     result: 'w6',
     ingredients: ['w5', 'w5', 'a4', 'c4'],
@@ -383,42 +385,112 @@ const BOSSES = [
 const BOSS_CHANCE = 0.08;
 
 // ============================================================
-//                      داستان‌ها (Story)
+//                      داستان‌ها (Story) — ۹ فصل کامل
 // ============================================================
 
 const STORY_CHAPTERS = [
   {
     id: 1,
     title: '🌅 شروع ماجراجویی',
-    desc: 'به دهکده‌ی آریا خوش اومدی! ماجراجویی بزرگ در انتظارته.',
+    desc: 'تو در دهکده‌ی آریا از خواب بیدار میشی. خورشید تازه طلوع کرده و هوای بهاری دل‌انگیزه.\n\n' +
+          'یادداشتی روی میزت پیدا میکنی:\n' +
+          '"به دنبال گنجینه‌ی اژدهای سیاه برو... اما مواظب باش!"\n\n' +
+          'چه کاری می‌خوای انجام بدی؟',
     choices: [
-      { text: 'به میخانه برو', next: 2, effect: 'gold+20' },
-      { text: 'به جنگل برو', next: 3, effect: 'xp+15' }
+      { text: '🍺 به میخانه برو و اطلاعات جمع کن', next: 2, effect: 'gold+20' },
+      { text: '🌲 به جنگل برو و راه بیفت', next: 3, effect: 'xp+15' },
+      { text: '🏪 به فروشگاه برو و تجهیزات بخری', next: 4, effect: 'nothing' }
     ]
   },
   {
     id: 2,
     title: '🍺 میخانه‌ی دهکده',
-    desc: 'توی میخانه با یه ماجراجوی قدیمی آشنا میشی...',
+    desc: 'وارد میخانه میشی. بوی شراب و دود توتون فضای گرمی ایجاد کرده.\n\n' +
+          'یه پیرمرد ریش‌سفید توی گوشه نشسته و با نگاهش بهت اشاره میکنه.\n' +
+          '"شنیدم دنبال اژدهایی... من می‌دونم کجاست."\n\n' +
+          'چیکار میکنی؟',
     choices: [
-      { text: 'ازش نصیحت بگیر', next: 4, effect: 'def+2' },
-      { text: 'بهش شراب تعارف کن', next: 4, effect: 'gold-10' }
+      { text: '🤝 بهش نزدیک میشی و حرف می‌زنی', next: 5, effect: 'gold-10' },
+      { text: '🚪 از میخانه خارج میشی', next: 3, effect: 'nothing' }
     ]
   },
   {
     id: 3,
     title: '🌲 جنگل انبوه',
-    desc: 'توی جنگل با یه گرگ زخمی برخورد میکنی...',
+    desc: 'توی جنگل قدم می‌زنی. درختان بلند سایه‌ی سنگینی انداختن.\n\n' +
+          'ناگهان صدای ناله‌ای میشنوی. یه گرگ زخمی کنار درختی افتاده.\n\n' +
+          'چیکار میکنی؟',
     choices: [
-      { text: 'بهش کمک کن', next: 4, effect: 'pet+wolf' },
-      { text: 'فرار کن', next: 4, effect: 'nothing' }
+      { text: '❤️ به گرگ کمک می‌کنی', next: 6, effect: 'pet+wolf' },
+      { text: '🏃 ادامه می‌دی و نادیده می‌گیری', next: 7, effect: 'nothing' }
     ]
   },
   {
     id: 4,
-    title: '🏰 پایان سفر',
-    desc: 'ماجراجویی‌ات به پایان رسید... ولی این تازه شروع کاره!',
+    title: '🏪 فروشگاه دهکده',
+    desc: 'فروشنده با لبخند بهت خوش‌آمد می‌گه.\n' +
+          '"به فروشگاه من خوش اومدی! بهترین وسایل رو دارم."\n\n' +
+          'نگاهی به ویترین می‌اندازی. یه شمشیر براق توجّهت رو جلب می‌کنه.\n\n' +
+          'چیکار میکنی؟',
+    choices: [
+      { text: '🛒 شمشیر رو می‌خری (۵۰ طلا)', next: 5, effect: 'gold-50' },
+      { text: '🚪 از فروشگاه خارج میشی', next: 5, effect: 'nothing' }
+    ]
+  },
+  {
+    id: 5,
+    title: '🗺️ نقشه‌ی گنج',
+    desc: 'پیرمرد نقشه‌ای کهنه بهت میده:\n' +
+          '"اژدها توی کوهستان آتشین زندگی می‌کنه. اما برای رسیدن به اونجا باید از سه دروازه بگذری."\n\n' +
+          'نقشه رو برداشتی و راهی میشی.\n\n' +
+          'به اولین دروازه رسیدی...',
+    choices: [
+      { text: '🚪 وارد دروازه اول میشی', next: 6, effect: 'xp+20' }
+    ]
+  },
+  {
+    id: 6,
+    title: '🐺 دوست جدید',
+    desc: 'به گرگ کمک کردی. زخمش رو بستی و بهش غذا دادی.\n\n' +
+          'گرگ باهات میاد و تصمیم می‌گیره همراهت باشه!\n\n' +
+          'حالا یه همراه وفادار داری که توی مسیر کمک‌ت می‌کنه.\n\n' +
+          'به دروازه‌ی دوم رسیدی...',
+    choices: [
+      { text: '🚪 وارد دروازه دوم میشی', next: 7, effect: 'def+3' }
+    ]
+  },
+  {
+    id: 7,
+    title: '🏔️ کوهستان آتشین',
+    desc: 'پس از روزها سفر، به کوهستان آتشین رسیدی.\n' +
+          'دود و آتش از دهانه‌ی کوه بیرون می‌زنه.\n\n' +
+          'اژدهای سیاه رو می‌بینی که روی گنجینه‌اش خوابیده.\n\n' +
+          'چیکار میکنی؟',
+    choices: [
+      { text: '⚔️ با اژدها می‌جنگی', next: 8, effect: 'gold+100' },
+      { text: '🔄 برمی‌گردی و از این کار منصرف میشی', next: 9, effect: 'nothing' }
+    ]
+  },
+  {
+    id: 8,
+    title: '🐉 نبرد با اژدها',
+    desc: 'نبردی حماسی با اژدهای سیاه داری!\n\n' +
+          'بعد از ساعتها جنگیدن، بالاخره اژدها رو شکست می‌دی!\n\n' +
+          'گنجینه‌ی عظیمی پیدا میکنی و به عنوان قهرمان دهکده برمی‌گردی.\n\n' +
+          '🎉 *داستان به پایان رسید!*\n' +
+          'تو به یک قهرمان افسانه‌ای تبدیل شدی!',
     choices: []
+  },
+  {
+    id: 9,
+    title: '🏠 بازگشت به خانه',
+    desc: 'تصمیم گرفتی از این ماجراجویی خطرناک منصرف بشی.\n\n' +
+          'به دهکده برمی‌گردی و زندگی آرومی رو شروع می‌کنی.\n\n' +
+          'اما همیشه یه حسرت توی دلت می‌مونه...\n\n' +
+          'آیا روزی برمی‌گردی؟',
+    choices: [
+      { text: '🔄 داستان رو از اول شروع کن', next: 1, effect: 'nothing' }
+    ]
   }
 ];
 
@@ -474,7 +546,6 @@ function calculateEffectiveAtk(player) {
     atk = Math.round(atk * 1.5);
   }
   
-  // پت
   if (player.pet) {
     const petData = PETS[player.pet];
     if (petData) {
@@ -486,7 +557,6 @@ function calculateEffectiveAtk(player) {
     }
   }
   
-  // حالت سخت (حمله کمتر)
   if (player.hardMode) {
     atk = Math.round(atk * 0.9);
   }
@@ -498,7 +568,6 @@ function calculateEffectiveDef(player) {
   const armor = findItemById(player.equippedArmor);
   let def = player.baseDef + (armor ? armor.defBonus : 0);
   
-  // پت
   if (player.pet) {
     const petData = PETS[player.pet];
     if (petData && petData.type === 'all') {
@@ -572,7 +641,6 @@ function generateMonster(playerLevel) {
   let hp = Math.round((15 + level * 5) * scale * hpMul);
   let def = Math.round((2 + level * 0.7) * scale * defMul);
   
-  // محافظت از بازیکن‌های جدید
   if (playerLevel < 3) {
     atk = Math.min(atk, 10);
     hp = Math.min(hp, 25);
@@ -603,7 +671,6 @@ function simulateFight(player, monster) {
   while (playerHp > 0 && monsterHp > 0 && round < 25) {
     round++;
     
-    // حمله بازیکن
     let pDmg = Math.max(1, Math.round(pAtk * (0.8 + Math.random() * 0.4) - monster.def * 0.5));
     const isCrit = Math.random() < critChance;
     if (isCrit) {
@@ -615,7 +682,6 @@ function simulateFight(player, monster) {
     
     if (monsterHp <= 0) break;
     
-    // حمله هیولا
     const mDmg = Math.max(1, Math.round(monster.atk * (0.8 + Math.random() * 0.4) - pDef * 0.5));
     playerHp -= mDmg;
     log.push(`${monster.name} ${mDmg} آسیب زد.`);
@@ -624,22 +690,19 @@ function simulateFight(player, monster) {
   let won = monsterHp <= 0 && playerHp > 0;
   let revived = false;
   
-  // سنگ احیا
   if (!won && player.activeEffects.revive && playerHp <= 0) {
     won = true;
     revived = true;
     playerHp = Math.round(player.maxHp * 0.3);
   }
   
-  player.currentHp = Math.max(0, playerHp);
-  
-  // پت ققنوس (احیا)
   if (!won && player.pet === 'phoenix' && playerHp <= 0) {
     won = true;
     revived = true;
     playerHp = Math.round(player.maxHp * 0.2);
-    player.currentHp = playerHp;
   }
+  
+  player.currentHp = Math.max(0, playerHp);
   
   return {
     won: won,
@@ -690,36 +753,58 @@ function updatePlayerQuests(player, type, amount = 1) {
 }
 
 // ============================================================
-//                      سیستم کرفتینگ
+//                      سیستم کرفتینگ (رفع باگ کامل)
 // ============================================================
 
 function canCraft(player, recipeId) {
   const recipe = RECIPES.find(r => r.id === recipeId);
+  
   if (!recipe) {
-    return { success: false, msg: 'دستور نامعتبر است' };
+    return { 
+      success: false, 
+      msg: '❌ دستور کرفتینگ پیدا نشد!' 
+    };
   }
   
   if (player.gold < recipe.cost) {
-    return { success: false, msg: `طلای کافی نداری! (${recipe.cost} طلا نیاز است)` };
+    return { 
+      success: false, 
+      msg: `💰 طلای کافی نداری! (${recipe.cost} طلا نیاز است)` 
+    };
   }
   
-  const hasAllIngredients = recipe.ingredients.every(id => player.inventory.includes(id));
+  const missingIngredients = [];
+  const hasAllIngredients = recipe.ingredients.every(id => {
+    const has = player.inventory.includes(id);
+    if (!has) {
+      const item = findItemById(id);
+      missingIngredients.push(item?.label || id);
+    }
+    return has;
+  });
+  
   if (!hasAllIngredients) {
-    return { success: false, msg: 'مواد لازم را نداری!' };
+    return { 
+      success: false, 
+      msg: `❌ مواد لازم را نداری!\nنیاز: ${missingIngredients.join(' + ')}` 
+    };
   }
   
-  return { success: true, recipe: recipe };
+  return { 
+    success: true, 
+    recipe: recipe 
+  };
 }
 
 function performCraft(player, recipeId) {
   const check = canCraft(player, recipeId);
+  
   if (!check.success) {
     return check;
   }
   
   const recipe = check.recipe;
   
-  // مصرف مواد
   recipe.ingredients.forEach(id => {
     const index = player.inventory.indexOf(id);
     if (index > -1) {
@@ -729,15 +814,16 @@ function performCraft(player, recipeId) {
   
   player.gold -= recipe.cost;
   player.inventory.push(recipe.result);
-  player.itemsCrafted += 1;
-  player.craftingLevel += 0.1;
+  player.itemsCrafted = (player.itemsCrafted || 0) + 1;
+  player.craftingLevel = (player.craftingLevel || 1) + 0.1;
   
   const resultItem = findItemById(recipe.result);
   
   return {
     success: true,
     msg: `✅ ${recipe.name} ساخته شد!`,
-    item: resultItem
+    item: resultItem,
+    recipe: recipe
   };
 }
 
@@ -816,14 +902,12 @@ function simulatePvP(player1, player2) {
   const def2 = calculateEffectiveDef(player2);
   
   for (let round = 0; round < 5; round++) {
-    // حمله بازیکن ۱
     const dmg1 = Math.max(1, Math.round(atk1 * (0.7 + Math.random() * 0.6) - def2 * 0.3));
     hp2 -= dmg1;
     log.push(`${player1.name} ${dmg1} آسیب زد`);
     
     if (hp2 <= 0) break;
     
-    // حمله بازیکن ۲
     const dmg2 = Math.max(1, Math.round(atk2 * (0.7 + Math.random() * 0.6) - def1 * 0.3));
     hp1 -= dmg2;
     log.push(`${player2.name} ${dmg2} آسیب زد`);
@@ -928,11 +1012,11 @@ function getProfileCard(player) {
 function getClassSelectionKeyboard() {
   return keyboard([
     [
-      styledButton('⚔️ جنگجو', 'pick_warrior', 'primary'),
-      styledButton('🔮 جادوگر', 'pick_mage', 'primary')
+      styledButton('⚔️ جنگجو — ' + CLASSES.warrior.desc, 'pick_warrior', 'primary'),
+      styledButton('🔮 جادوگر — ' + CLASSES.mage.desc, 'pick_mage', 'primary')
     ],
     [
-      styledButton('🏹 تیرانداز', 'pick_archer', 'primary')
+      styledButton('🏹 تیرانداز — ' + CLASSES.archer.desc, 'pick_archer', 'primary')
     ]
   ]);
 }
@@ -940,12 +1024,11 @@ function getClassSelectionKeyboard() {
 function getMainMenuKeyboard(player) {
   const rows = [
     [
-      styledButton('👤 پروفایل', 'menu_profile', 'primary'),
-      styledButton('🎒 کوله‌پشتی', 'menu_inventory', 'primary')
+      styledButton('⚔️⚔️ نبرد ⚔️⚔️', 'menu_fight', 'danger')
     ],
     [
-      styledButton('⚔️ نبرد', 'menu_fight', 'danger'),
-      styledButton('🎁 جایزه روزانه', 'menu_daily', 'success')
+      styledButton('👤 پروفایل', 'menu_profile', 'primary'),
+      styledButton('🎒 کوله‌پشتی', 'menu_inventory', 'primary')
     ],
     [
       styledButton('🏪 فروشگاه', 'menu_shop', 'primary'),
@@ -982,11 +1065,11 @@ function getMainMenuKeyboard(player) {
 function getShopCategoryKeyboard() {
   return keyboard([
     [
-      styledButton('🗡 سلاح‌ها', 'shop_weapons', 'primary'),
-      styledButton('🛡 زره‌ها', 'shop_armors', 'primary')
+      styledButton('🗡 سلاح‌ها (افزایش حمله)', 'shop_weapons', 'primary'),
+      styledButton('🛡 زره‌ها (افزایش دفاع)', 'shop_armors', 'primary')
     ],
     [
-      styledButton('🧪 معجون‌ها', 'shop_consumables', 'primary')
+      styledButton('🧪 معجون‌ها (افکت‌های ویژه)', 'shop_consumables', 'primary')
     ],
     [
       styledButton('« بازگشت به منو', 'menu_main', 'primary')
@@ -994,8 +1077,9 @@ function getShopCategoryKeyboard() {
   ]);
 }
 
-function getShopItemsKeyboard(items, category) {
+function getShopItemsKeyboard(items) {
   const rows = [];
+  
   for (let i = 0; i < items.length; i += 2) {
     const row = [];
     const item1 = items[i];
@@ -1015,17 +1099,24 @@ function getShopItemsKeyboard(items, category) {
     }
     rows.push(row);
   }
+  
   rows.push([styledButton('« بازگشت به فروشگاه', 'menu_shop', 'primary')]);
   return keyboard(rows);
 }
 
 function getInventoryKeyboard(player) {
   if (!player || player.inventory.length === 0) {
-    return keyboard([[styledButton('« بازگشت به منو', 'menu_main', 'primary')]]);
+    return keyboard([
+      [styledButton('🎒 کوله خالی است!', 'ignore', 'secondary')],
+      [styledButton('« بازگشت به منو', 'menu_main', 'primary')]
+    ]);
   }
   
   const rows = [];
   const items = player.inventory;
+  
+  rows.push([{ text: `🎒 ${items.length} آیتم در کوله`, callback_data: 'ignore' }]);
+  rows.push([]);
   
   for (let i = 0; i < items.length; i += 2) {
     const row = [];
@@ -1034,7 +1125,8 @@ function getInventoryKeyboard(player) {
     if (item1) {
       const isEquipped = (player.equippedWeapon === id1 || player.equippedArmor === id1);
       const label = isEquipped ? `✅ ${item1.label}` : item1.label;
-      row.push(styledButton(label, `inv_item_${id1}`, 'primary'));
+      const emoji = item1.type === 'weapon' ? '🗡' : item1.type === 'armor' ? '🛡' : '🧪';
+      row.push(styledButton(`${emoji} ${label}`, `inv_item_${id1}`, 'primary'));
     }
     
     if (i + 1 < items.length) {
@@ -1043,7 +1135,8 @@ function getInventoryKeyboard(player) {
       if (item2) {
         const isEquipped = (player.equippedWeapon === id2 || player.equippedArmor === id2);
         const label = isEquipped ? `✅ ${item2.label}` : item2.label;
-        row.push(styledButton(label, `inv_item_${id2}`, 'primary'));
+        const emoji = item2.type === 'weapon' ? '🗡' : item2.type === 'armor' ? '🛡' : '🧪';
+        row.push(styledButton(`${emoji} ${label}`, `inv_item_${id2}`, 'primary'));
       }
     }
     rows.push(row);
@@ -1055,7 +1148,7 @@ function getInventoryKeyboard(player) {
 
 function getItemActionKeyboard(itemId) {
   const item = findItemById(itemId);
-  if (!item) return getMainMenuKeyboard(null);
+  if (!item) return backButton('menu_main');
   
   const rows = [];
   
@@ -1140,11 +1233,10 @@ function getGuildKeyboard(player) {
     const guild = getGuildById(player.guild);
     if (!guild) {
       player.guild = null;
-      savePlayerByCtx({ chat: { id: 0 }, from: { id: 0 } }, player);
       return getGuildKeyboard(player);
     }
     
-    const isLeader = guild.leader === getPlayerKey(0, player._tempUserId || 0);
+    const isLeader = guild.leader === getPlayerKey(0, 0);
     const rows = [];
     
     if (isLeader) {
@@ -1251,6 +1343,7 @@ function getStoryKeyboard(chapter) {
 
 if (!process.env.BOT_TOKEN) {
   console.error('❌ متغیر محیطی BOT_TOKEN تنظیم نشده است.');
+  console.log('📝 یک فایل .env بسازید با محتوای: BOT_TOKEN=توکن_ربات_شما');
   process.exit(1);
 }
 
@@ -1273,7 +1366,7 @@ bot.command('start', async (ctx) => {
   }
   
   await ctx.reply(
-    '🗡 به *افسانه‌ی گروه (نسخه ۴)* خوش اومدی!\n\n' +
+    '🗡 به *افسانه‌ی گروه (نسخه ۴.۱)* خوش اومدی!\n\n' +
     'یک کلاس برای شخصیتت انتخاب کن:',
     {
       parse_mode: 'Markdown',
@@ -1389,7 +1482,6 @@ async function showFight(ctx) {
     return;
   }
   
-  // نمایش افکت‌های فعال
   let effectsMsg = '';
   if (player.activeEffects.power) effectsMsg += '💥 قدرت ۱.۵× فعال\n';
   if (player.activeEffects.luck) effectsMsg += '🍀 شانس کریت بیشتر\n';
@@ -1402,17 +1494,12 @@ async function showFight(ctx) {
     );
   }
   
-  // تولید هیولا
   const monster = generateMonster(player.level);
-  
-  // شبیه‌سازی نبرد
   const result = simulateFight(player, monster);
   
-  // ساخت پیام نتیجه
   const introEmoji = monster.isBoss ? '👑💀 *یک باس ظاهر شد!* 💀👑' : `${monster.emoji}`;
   let text = `${introEmoji} یک *${monster.name}* سر راهت ظاهر شد!\n\n`;
   
-  // نمایش لاگ‌ها (حداکثر ۱۰ خط)
   const displayLog = result.log.slice(0, 10);
   text += displayLog.join('\n');
   if (result.log.length > 10) {
@@ -1421,7 +1508,6 @@ async function showFight(ctx) {
   text += '\n\n';
   
   if (result.won) {
-    // پاداش پیروزی
     const bonusGold = Math.round(result.goldReward * (1 + Math.random() * 0.3));
     player.xp += result.xpReward;
     player.gold += bonusGold;
@@ -1431,7 +1517,6 @@ async function showFight(ctx) {
       player.bossesDefeated += 1;
     }
     
-    // بروزرسانی ماموریت‌ها
     updatePlayerQuests(player, monster.isBoss ? 'boss' : 'kill');
     updatePlayerQuests(player, 'win');
     updatePlayerQuests(player, 'gold', bonusGold);
@@ -1452,7 +1537,6 @@ async function showFight(ctx) {
       text += `\n🎊 *سطح جدید: ${levelsGained[levelsGained.length - 1]}!* آمارت افزایش پیدا کرد.`;
     }
     
-    // شانس دریافت آیتم (برای شکارچی)
     if (player.profession === 'hunter' && Math.random() < 0.2) {
       const randomItem = ALL_ITEMS[Math.floor(Math.random() * ALL_ITEMS.length)];
       if (randomItem) {
@@ -1462,16 +1546,13 @@ async function showFight(ctx) {
     }
     
   } else {
-    // شکست
     player.losses += 1;
     
-    // پاداش دلداری
     const consolationXp = Math.round(result.xpReward * 0.3);
     const consolationGold = Math.round(result.goldReward * 0.2);
     player.xp += consolationXp;
     player.gold += consolationGold;
     
-    // جریمه کم
     const penalty = Math.min(player.gold, Math.round(result.goldReward * 0.05));
     player.gold -= penalty;
     
@@ -1485,13 +1566,9 @@ async function showFight(ctx) {
     }
   }
   
-  // پاک کردن افکت‌های موقت
   player.activeEffects = { power: false, luck: false, revive: false };
-  
-  // ذخیره بازیکن
   savePlayerByCtx(ctx, player);
   
-  // دکمه‌های بعد از نبرد
   await ctx.reply(
     text,
     {
@@ -1530,7 +1607,6 @@ async function showDaily(ctx) {
     return;
   }
   
-  // استریک
   const streakBroken = now - player.lastDaily > cooldown * 2;
   player.dailyStreak = streakBroken ? 1 : player.dailyStreak + 1;
   if (player.lastDaily === 0) player.dailyStreak = 1;
@@ -1601,11 +1677,28 @@ async function showShop(ctx) {
 }
 
 async function showShopCategory(ctx, items, title) {
+  const player = getPlayerByCtx(ctx);
+  const discount = player ? getShopDiscount(player) : 0;
+  
+  let discountText = '';
+  if (discount > 0) {
+    discountText = `\n💰 تخفیف پیشه: ${Math.round(discount * 100)}%`;
+  }
+  
+  let itemsDesc = items.map(item => {
+    const rarityLabel = RARITY_LABELS[item.rarity] || '';
+    const price = Math.round(item.price * (1 - discount));
+    const atkText = item.atkBonus ? `💪+${item.atkBonus}` : '';
+    const defText = item.defBonus ? `🛡+${item.defBonus}` : '';
+    const effectText = item.desc ? ` 📝${item.desc}` : '';
+    return `${item.label} ${rarityLabel} — ${price}طلا ${atkText}${defText}${effectText}`;
+  }).join('\n');
+  
   await ctx.reply(
-    `🏪 *${title}*\n\nروی آیتم کلیک کن تا بخری:`,
+    `🏪 *${title}*\n\n${itemsDesc}${discountText}\n\nروی آیتم کلیک کن تا بخری:`,
     {
       parse_mode: 'Markdown',
-      ...getShopItemsKeyboard(items, title)
+      ...getShopItemsKeyboard(items)
     }
   );
 }
@@ -1666,7 +1759,7 @@ async function showLeaderboard(ctx, category = 'level') {
 
 async function showHelp(ctx) {
   await ctx.reply(
-    '🗡 *راهنمای افسانه‌ی گروه (نسخه ۴)*\n\n' +
+    '🗡 *راهنمای افسانه‌ی گروه (نسخه ۴.۱)*\n\n' +
     '✅ همه‌چیز با دکمه‌ها انجام میشه!\n\n' +
     '⚔️ نبرد — با هیولاها بجنگ (شانس باس!)\n' +
     '🎁 روزانه — هر ۲۴ ساعت جایزه بگیر\n' +
@@ -1677,12 +1770,12 @@ async function showHelp(ctx) {
     '🐾 پت — حیوان همراه بگیر\n' +
     '⚒️ پیشه — یه شغل انتخاب کن\n' +
     '📜 ماموریت‌ها — کارهای روزانه\n' +
-    '🔨 کرفتینگ — آیتم بساز\n' +
+    '🔨 کرفتینگ — آیتم بساز (رفع باگ شده)\n' +
     '🏰 گیلد — گروه تشکیل بده\n' +
     '⚔️ PvP — با بازیکن‌های دیگه بجنگ\n' +
     '💰 بازار — آیتم بخر و بفروش\n' +
     '🔥 حالت سخت — چالش بیشتر، پاداش بیشتر\n' +
-    '📖 داستان — ماجراجویی کن\n\n' +
+    '📖 داستان — ماجراجویی کن (۹ فصل)\n\n' +
     '💡 نکته: هر روز جایزه بگیر تا استریک‌ات قوی‌تر بشه!',
     {
       parse_mode: 'Markdown',
@@ -2188,7 +2281,6 @@ bot.action(/^buy_(.+)$/, async (ctx) => {
     return;
   }
   
-  // اعمال تخفیف پیشه
   let price = item.price;
   const discount = getShopDiscount(player);
   if (discount > 0) {
@@ -2205,10 +2297,7 @@ bot.action(/^buy_(.+)$/, async (ctx) => {
   
   player.gold -= price;
   player.inventory.push(item.id);
-  
-  // بروزرسانی ماموریت خرید
   updatePlayerQuests(player, 'buy');
-  
   savePlayerByCtx(ctx, player);
   
   await ctx.answerCbQuery(`✅ ${item.label} خریداری شد!`);
@@ -2253,20 +2342,35 @@ bot.action(/^inv_item_(.+)$/, async (ctx) => {
   
   await ctx.answerCbQuery();
   
+  const isEquipped = (player.equippedWeapon === itemId || player.equippedArmor === itemId);
+  const rarityLabel = RARITY_LABELS[item.rarity] || '';
+  const sellPrice = Math.round(item.price * getSellMultiplier(player));
+  
   let info = `📦 *${item.label}*\n\n`;
   info += `نوع: ${item.type === 'weapon' ? '🗡 سلاح' : item.type === 'armor' ? '🛡 زره' : '🧪 معجون'}\n`;
   
-  if (item.rarity) {
-    info += `کیفیت: ${RARITY_LABELS[item.rarity] || item.rarity}\n`;
+  if (rarityLabel) {
+    info += `کیفیت: ${rarityLabel}\n`;
   }
   
-  if (item.atkBonus) info += `💪 حمله: +${item.atkBonus}\n`;
-  if (item.defBonus) info += `🛡 دفاع: +${item.defBonus}\n`;
-  if (item.desc) info += `📝 ${item.desc}\n`;
+  if (item.atkBonus) {
+    info += `💪 حمله: +${item.atkBonus}\n`;
+  }
+  if (item.defBonus) {
+    info += `🛡 دفاع: +${item.defBonus}\n`;
+  }
+  if (item.desc) {
+    info += `📝 ${item.desc}\n`;
+  }
   
-  const sellPrice = Math.round(item.price * getSellMultiplier(player));
-  info += `💰 قیمت فروش: ${sellPrice} طلا\n\n`;
-  info += `چکار می‌خوای باهاش کنی؟`;
+  info += `💰 قیمت خرید: ${item.price} طلا\n`;
+  info += `💰 قیمت فروش: ${sellPrice} طلا\n`;
+  
+  if (isEquipped) {
+    info += `✅ *تجهیز شده*`;
+  }
+  
+  info += `\n\nچکار می‌خوای باهاش کنی؟`;
   
   await ctx.reply(
     info,
@@ -2344,11 +2448,9 @@ bot.action(/^use_(.+)$/, async (ctx) => {
     return;
   }
   
-  // حذف از کوله
   const index = player.inventory.indexOf(itemId);
   player.inventory.splice(index, 1);
   
-  // اعمال اثر
   if (item.effect === 'heal') {
     const healAmount = Math.round(player.maxHp * 0.4);
     player.currentHp = Math.min(player.maxHp, player.currentHp + healAmount);
@@ -2397,11 +2499,9 @@ bot.action(/^sell_(.+)$/, async (ctx) => {
   
   const sellPrice = Math.round(item.price * getSellMultiplier(player));
   
-  // حذف از کوله
   const index = player.inventory.indexOf(itemId);
   player.inventory.splice(index, 1);
   
-  // خارج کردن از تجهیزات
   if (player.equippedWeapon === itemId) player.equippedWeapon = null;
   if (player.equippedArmor === itemId) player.equippedArmor = null;
   
@@ -2439,7 +2539,6 @@ bot.action(/^profession_pick_(.+)$/, async (ctx) => {
     return;
   }
   
-  // تغییر پیشه
   if (player.profession) {
     if (player.gold < 50) {
       await ctx.answerCbQuery('برای تغییر پیشه ۵۰ طلا نیازه!', { show_alert: true });
@@ -2551,7 +2650,7 @@ bot.action('pet_change', async (ctx) => {
 });
 
 // ============================================================
-//                      اکشن‌های کرفتینگ
+//                      اکشن‌های کرفتینگ (رفع باگ)
 // ============================================================
 
 bot.action(/^craft_(.+)$/, async (ctx) => {
@@ -2563,24 +2662,40 @@ bot.action(/^craft_(.+)$/, async (ctx) => {
   }
   
   const recipeId = ctx.match[1];
-  const result = performCraft(player, recipeId);
   
-  if (!result.success) {
-    await ctx.answerCbQuery(result.msg, { show_alert: true });
-    return;
-  }
-  
-  savePlayerByCtx(ctx, player);
-  
-  await ctx.answerCbQuery(`✅ ${result.item?.label || 'آیتم'} ساخته شد!`);
-  
-  await ctx.reply(
-    `${result.msg}\n💰 ${player.gold} طلا مونده.`,
-    {
-      parse_mode: 'Markdown',
-      ...backButton('menu_crafting')
+  try {
+    const result = performCraft(player, recipeId);
+    
+    if (!result.success) {
+      await ctx.answerCbQuery(result.msg, { show_alert: true });
+      return;
     }
-  );
+    
+    savePlayerByCtx(ctx, player);
+    
+    await ctx.answerCbQuery(`✅ ${result.item?.label || 'آیتم'} ساخته شد!`);
+    
+    await ctx.reply(
+      `${result.msg}\n` +
+      `📦 ${result.item?.label || 'آیتم'} به کوله‌پشتی اضافه شد!\n` +
+      `💰 ${player.gold} طلا مونده.`,
+      {
+        parse_mode: 'Markdown',
+        ...keyboard([
+          [styledButton('🎒 رفتن به کوله', 'menu_inventory', 'primary')],
+          [styledButton('🔨 ادامه کرفتینگ', 'menu_crafting', 'primary')],
+          [styledButton('« بازگشت به منو', 'menu_main', 'primary')]
+        ])
+      }
+    );
+    
+  } catch (error) {
+    console.error('❌ خطا در کرفتینگ:', error.message);
+    await ctx.reply(
+      '⚠️ خطایی در کرفتینگ رخ داد! لطفاً دوباره تلاش کن.',
+      backButton('menu_crafting')
+    );
+  }
 });
 
 // ============================================================
@@ -2720,7 +2835,6 @@ bot.action('guild_boss', async (ctx) => {
   }
   
   if (guild.bossHp <= 0) {
-    // باس مرده، ریست کن
     guild.bossHp = guild.bossMaxHp;
     guild.bossDefeated += 1;
     saveAllData();
@@ -2729,11 +2843,9 @@ bot.action('guild_boss', async (ctx) => {
     return;
   }
   
-  // حمله به باس
   const damage = Math.round(10 + Math.random() * 20 + player.level * 2);
   guild.bossHp = Math.max(0, guild.bossHp - damage);
   
-  // پاداش
   const goldReward = Math.round(5 + Math.random() * 10);
   const xpReward = Math.round(5 + Math.random() * 10);
   player.gold += goldReward;
@@ -2751,7 +2863,6 @@ bot.action('guild_boss', async (ctx) => {
     text += `\n🎉 *باس گیلد شکست خورد!*\n`;
     text += `🏆 ${guild.members.length} عضو پاداش می‌گیرن!`;
     
-    // پاداش همه اعضا
     guild.members.forEach(memberKey => {
       const member = getPlayerByKey(memberKey);
       if (member) {
@@ -2821,14 +2932,12 @@ bot.action('pvp_find', async (ctx) => {
   
   await ctx.answerCbQuery('🔍 در صف PvP قرار گرفتی...');
   
-  // پیدا کردن حریف
   const opponentKey = findPvPOpponent(playerKey);
   
   if (opponentKey) {
     const opponent = getPlayerByKey(opponentKey);
     
     if (opponent) {
-      // شروع نبرد
       const result = simulatePvP(player, opponent);
       
       let text = '⚔️ *نبرد PvP*\n\n';
@@ -2850,7 +2959,6 @@ bot.action('pvp_find', async (ctx) => {
       savePlayerByCtx(ctx, player);
       savePlayerByKey(opponentKey, opponent);
       
-      // حذف از صف
       const index = PVP_QUEUE.indexOf(playerKey);
       if (index > -1) PVP_QUEUE.splice(index, 1);
       
@@ -2862,16 +2970,12 @@ bot.action('pvp_find', async (ctx) => {
         }
       );
       
-      // خبر دادن به حریف
       try {
-        const opponentCtx = { chat: { id: ctx.chat.id }, from: { id: parseInt(opponentKey.split(':')[1]) } };
         await bot.telegram.sendMessage(
           parseInt(opponentKey.split(':')[1]),
           `⚔️ نبرد PvP با ${player.name} تمام شد!\n${result.winner === 2 ? '🎉 برنده شدی!' : '😔 باختی...'}`
         );
-      } catch (e) {
-        // نادیده گرفتن
-      }
+      } catch (e) {}
       
       return;
     }
@@ -3018,11 +3122,9 @@ bot.action(/^market_price_(.+)_(\d+)$/, async (ctx) => {
     return;
   }
   
-  // حذف از کوله
   const index = player.inventory.indexOf(itemId);
   player.inventory.splice(index, 1);
   
-  // اضافه به بازار
   const playerKey = getPlayerKey(ctx.chat.id, ctx.from.id);
   addToMarket(playerKey, itemId, price);
   savePlayerByCtx(ctx, player);
@@ -3064,18 +3166,15 @@ bot.action(/^market_buy_(.+)$/, async (ctx) => {
     return;
   }
   
-  // خرید
   player.gold -= listing.price;
   player.inventory.push(listing.itemId);
   
-  // پول به فروشنده
   const seller = getPlayerByKey(listing.playerKey);
   if (seller) {
     seller.gold += listing.price;
     savePlayerByKey(listing.playerKey, seller);
   }
   
-  // حذف از بازار
   removeFromMarket(listingId);
   savePlayerByCtx(ctx, player);
   
@@ -3121,12 +3220,10 @@ bot.action(/^story_(\d+)$/, async (ctx) => {
     return;
   }
   
-  // پیدا کردن انتخاب قبلی
   const prevChapter = STORY_CHAPTERS.find(c => c.choices && c.choices.some(ch => ch.next === chapterId));
   if (prevChapter) {
     const choice = prevChapter.choices.find(ch => ch.next === chapterId);
     if (choice && choice.effect) {
-      // اعمال اثر
       const parts = choice.effect.split('+');
       if (parts.length === 2) {
         const type = parts[0];
@@ -3180,6 +3277,14 @@ bot.action('quests_refresh', async (ctx) => {
 });
 
 // ============================================================
+//                      دکمه‌های بی‌استفاده (ignore)
+// ============================================================
+
+bot.action('ignore', async (ctx) => {
+  await ctx.answerCbQuery();
+});
+
+// ============================================================
 //                      فال‌بک (Fallback)
 // ============================================================
 
@@ -3203,8 +3308,8 @@ bot.on('text', async (ctx) => {
 
 bot.catch((err, ctx) => {
   console.error(`❌ خطا در آپدیت ${ctx.updateType}:`, err.message);
+  console.error(err.stack);
   
-  // تلاش برای پاسخ به کاربر
   if (ctx && ctx.reply) {
     ctx.reply(
       '⚠️ یه مشکلی پیش اومد! لطفاً دوباره تلاش کن.',
@@ -3219,10 +3324,11 @@ bot.catch((err, ctx) => {
 
 bot.launch()
   .then(() => {
-    console.log('🗡 افسانه‌ی گروه (نسخه ۴) شروع شد!');
+    console.log('🗡 افسانه‌ی گروه (نسخه ۴.۱) شروع شد!');
     console.log(`📁 تعداد بازیکنان: ${Object.keys(players).length}`);
     console.log(`🏰 تعداد گیلدها: ${Object.keys(guilds).length}`);
     console.log(`💰 تعداد آیتم‌های بازار: ${Object.keys(market).length}`);
+    console.log(`📖 تعداد فصل‌های داستان: ${STORY_CHAPTERS.length}`);
   })
   .catch((err) => {
     console.error('❌ خطا در راه‌اندازی ربات:', err.message);
