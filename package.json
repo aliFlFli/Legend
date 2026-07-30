@@ -1,0 +1,13 @@
+{
+  "name": "telegram-adventure-bot",
+  "version": "1.0.0",
+  "description": "ربات RPG متنی گروهی برای تلگرام — افسانه‌ی گروه",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "telegraf": "^4.16.3",
+    "dotenv": "^16.4.5"
+  }
+}
