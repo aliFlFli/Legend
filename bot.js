@@ -61,9 +61,6 @@ function savePlayer(ctx, p) {
 }
 
 // ==================== دکمه‌ی رنگی (Bot API 9.4+) ====================
-// از Bot API 9.4 به بعد هر دکمه‌ی اینلاین می‌تواند style بگیرد:
-// 'primary' (آبی), 'success' (سبز), 'danger' (قرمز). چون ممکن است
-// wrapper سطح‌بالای Markup این فیلد را نشناسد، دکمه را خام می‌سازیم.
 function sbtn(text, callback_data, style) {
   const b = { text, callback_data };
   if (style) b.style = style;
@@ -89,12 +86,13 @@ function createPlayer(ctx, classKey) {
     xp: 0,
     gold: 20,
     maxHp: base.hp,
+    currentHp: base.hp,
     baseAtk: base.atk,
     baseDef: base.def,
     equippedWeapon: null,
     equippedArmor: null,
     inventory: [],
-    activeEffects: { power: false, luck: false, revive: false }, // مصرف‌شونده قبل از نبرد بعدی
+    activeEffects: { power: false, luck: false, revive: false },
     wins: 0,
     losses: 0,
     bossesDefeated: 0,
@@ -128,6 +126,7 @@ function applyLevelUps(p) {
     p.xp -= xpForNextLevel(p.level);
     p.level += 1;
     p.maxHp += 6;
+    p.currentHp = p.maxHp;
     p.baseAtk += 2;
     p.baseDef += 1;
     gained.push(p.level);
@@ -156,7 +155,7 @@ const MONSTER_NAMES = [
   { name: 'خفاش خون‌آشام', emoji: '🦇' },
   { name: 'گولم سنگی', emoji: '🗿' },
   { name: 'روح سرگردان', emoji: '👻' },
-  { name: 'تروول غارنشین', emoji: '🧌' },
+  { name: 'ترول غارنشین', emoji: '🧌' },
   { name: 'کرم شنی غول‌پیکر', emoji: '🪱' },
   { name: 'شوالیه‌ی سیاه', emoji: '🖤' },
   { name: 'مومیایی نفرین‌شده', emoji: '🧟' },
@@ -175,7 +174,7 @@ const BOSSES = [
   { name: 'دیو آتشین کوهستان', emoji: '🌋' },
 ];
 
-const BOSS_CHANCE = 0.08; // ۸٪ شانس ظهور باس در هر /fight
+const BOSS_CHANCE = 0.08;
 
 function generateMonster(playerLevel) {
   const lvl = Math.max(1, playerLevel);
@@ -183,8 +182,6 @@ function generateMonster(playerLevel) {
   const pool = isBoss ? BOSSES : MONSTER_NAMES;
   const base = pool[Math.floor(Math.random() * pool.length)];
   const scale = 0.85 + Math.random() * 0.35;
-  // ضرایب باس طوری تنظیم شده که بدون تجهیزات خوب تقریباً غیرممکن،
-  // ولی با تجهیزات مناسب (~+۱۴ atk / +۱۵ def) حدود ۸۰٪ قابل شکست باشد.
   const hpMul = isBoss ? 1.7 : 1;
   const atkMul = isBoss ? 1.3 : 1;
   const defMul = isBoss ? 1.25 : 1;
@@ -199,11 +196,8 @@ function generateMonster(playerLevel) {
   };
 }
 
-/**
- * شبیه‌سازی نبرد نوبتی با احتمال ضربه‌ی بحرانی (کریتیکال) برای بازیکن.
- */
 function simulateFight(p, monster) {
-  let playerHp = p.maxHp;
+  let playerHp = p.currentHp;
   let monsterHp = monster.hp;
   const log = [];
   const pAtk = effectiveAtk(p);
@@ -221,27 +215,26 @@ function simulateFight(p, monster) {
       anyCrit = true;
     }
     monsterHp -= pDmg;
-    if (round <= 3) {
-      log.push(isCrit ? `💥 ضربه‌ی بحرانی! ${pDmg} آسیب زدی!` : `تو ${pDmg} آسیب زدی.`);
-    }
+    log.push(isCrit ? `💥 ضربه‌ی بحرانی! ${pDmg} آسیب زدی!` : `تو ${pDmg} آسیب زدی.`);
+    
     if (monsterHp <= 0) break;
 
     const mDmg = Math.max(1, Math.round(monster.atk * (0.8 + Math.random() * 0.4) - pDef * 0.5));
     playerHp -= mDmg;
-    if (round <= 3) {
-      log.push(`${monster.name} ${mDmg} آسیب زد.`);
-    }
+    log.push(`${monster.name} ${mDmg} آسیب زد.`);
   }
 
   let won = monsterHp <= 0 && playerHp > 0;
-
-  // سنگ احیا: اگر می‌باختی و این افکت فعال بود، یک‌بار نجات پیدا می‌کنی
   let revived = false;
+
   if (!won && p.activeEffects.revive && playerHp <= 0) {
     won = true;
     revived = true;
     playerHp = Math.round(p.maxHp * 0.3);
   }
+
+  // به‌روزرسانی currentHp
+  p.currentHp = Math.max(0, playerHp);
 
   return { won, log, remainingHp: Math.max(0, playerHp), revived, isBoss: monster.isBoss };
 }
@@ -272,7 +265,7 @@ const ARMORS = [
 ];
 
 const CONSUMABLES = [
-  { id: 'c1', label: '🧪 معجون سلامتی', type: 'consumable', effect: 'heal', price: 15, desc: 'قبل از نبرد بعدی سلامتی کامل' },
+  { id: 'c1', label: '🧪 معجون سلامتی', type: 'consumable', effect: 'heal', price: 15, desc: '۴۰٪ سلامتی رو بازیابی می‌کنه' },
   { id: 'c2', label: '💥 معجون قدرت', type: 'consumable', effect: 'power', price: 25, desc: 'نبرد بعدی ۵۰٪ حمله‌ی بیشتر' },
   { id: 'c3', label: '🍀 طلسم شانس', type: 'consumable', effect: 'luck', price: 25, desc: 'نبرد بعدی شانس کریتیکال بیشتر' },
   { id: 'c4', label: '✨ سنگ احیا', type: 'consumable', effect: 'revive', price: 60, desc: 'اگر می‌باختی یک‌بار نجات پیدا می‌کنی' },
@@ -300,7 +293,7 @@ function profileCard(p) {
     `${computeTitle(p)}\n\n` +
     `📊 سطح: *${p.level}*\n` +
     `✨ تجربه: ${xpBar(p)}\n` +
-    `❤️ سلامتی: ${p.maxHp}\n` +
+    `❤️ سلامتی: ${p.currentHp}/${p.maxHp}\n` +
     `💪 حمله: ${effectiveAtk(p)}${weapon ? ` (${weapon.label})` : ' (بدون سلاح)'}\n` +
     `🛡 دفاع: ${effectiveDef(p)}${armor ? ` (${armor.label})` : ' (بدون زره)'}\n` +
     `💰 طلا: ${p.gold}\n\n` +
@@ -346,7 +339,7 @@ async function doInventory(ctx) {
   if (!p) return ctx.reply('هنوز شخصیت نساختی. اول /start رو بزن.');
 
   if (p.inventory.length === 0) {
-    return ctx.reply('کوله‌پشتیت خالیه. برو به فروشگاه یه چیزی بخر!');
+    return ctx.reply('🎒 کوله‌پشتیت خالیه. برو به فروشگاه یه چیزی بخر!');
   }
 
   const lines = p.inventory.map((id) => {
@@ -368,15 +361,28 @@ async function doFight(ctx) {
   const p = getPlayer(ctx);
   if (!p) return ctx.reply('هنوز شخصیت نساختی. اول /start رو بزن.');
 
-  // اعمال معجون سلامتی قبل از نبرد (اگر فعال بود)
-  // (سلامتی همیشه در ابتدای نبرد maxHp است، پس این افکت فقط جنبه‌ی روایی دارد)
+  // بررسی افکت‌های فعال
+  let effectsMsg = '';
+  if (p.activeEffects.power) effectsMsg += '💥 قدرت ۱.۵× فعال\n';
+  if (p.activeEffects.luck) effectsMsg += '🍀 شانس کریت بیشتر\n';
+  if (p.activeEffects.revive) effectsMsg += '✨ سنگ احیا همراهته\n';
+  if (effectsMsg) {
+    await ctx.reply(`✨ *افکت‌های فعال:*\n${effectsMsg}`, { parse_mode: 'Markdown' });
+  }
 
   const monster = generateMonster(p.level);
   const result = simulateFight(p, monster);
 
   const introEmoji = monster.isBoss ? '👑💀 *یک باس ظاهر شد!* 💀👑' : `${monster.emoji}`;
   let text = `${introEmoji} یک *${monster.name}* سر راهت ظاهر شد!\n\n`;
-  text += result.log.join('\n') + '\n\n';
+  
+  // نمایش لاگ‌های نبرد (حداکثر ۱۰ تا)
+  const displayLog = result.log.slice(0, 10);
+  text += displayLog.join('\n');
+  if (result.log.length > 10) {
+    text += `\n... و ${result.log.length - 10} حرکت دیگه`;
+  }
+  text += '\n\n';
 
   if (result.won) {
     p.xp += monster.xpReward;
@@ -400,11 +406,19 @@ async function doFight(ctx) {
     text += `☠️ *شکست خوردی...* ${goldLost > 0 ? `و ${goldLost} طلا از دست دادی.` : ''}`;
   }
 
-  // مصرف افکت‌های موقت پس از نبرد (چه برده باشی چه باخته)
+  // پاک کردن افکت‌های موقت
   p.activeEffects = { power: false, luck: false, revive: false };
 
   savePlayer(ctx, p);
-  await ctx.reply(text, { parse_mode: 'Markdown' });
+  
+  // دکمه‌های بعد از نبرد
+  await ctx.reply(text, {
+    parse_mode: 'Markdown',
+    ...kb([
+      [sbtn('⚔️ دوباره بجنگ!', 'menu_fight', 'danger')],
+      [sbtn('« بازگشت به منو', 'menu_main', 'primary')]
+    ])
+  });
 }
 
 async function doDaily(ctx) {
@@ -420,12 +434,11 @@ async function doDaily(ctx) {
     return ctx.reply(`⏳ جایزه‌ی روزانه رو قبلاً گرفتی. حدود ${hours} ساعت دیگه دوباره سر بزن.`);
   }
 
-  // اگر بیش از ۴۸ ساعت از آخرین دریافت گذشته، استریک صفر می‌شود
   const streakBroken = now - p.lastDaily > cooldown * 2;
   p.dailyStreak = streakBroken ? 1 : p.dailyStreak + 1;
   if (p.lastDaily === 0) p.dailyStreak = 1;
 
-  const streakMultiplier = 1 + Math.min(p.dailyStreak - 1, 9) * 0.1; // تا سقف ۲برابر در روز دهم به بعد
+  const streakMultiplier = 1 + Math.min(p.dailyStreak - 1, 9) * 0.1;
   const goldReward = Math.round((20 + p.level * 3) * streakMultiplier);
   const xpReward = Math.round((10 + p.level * 2) * streakMultiplier);
 
@@ -448,6 +461,7 @@ function shopCategoryKeyboard() {
   return kb([
     [sbtn('🗡 سلاح‌ها', 'shop_weapons', 'primary'), sbtn('🛡 زره‌ها', 'shop_armors', 'primary')],
     [sbtn('🧪 معجون‌ها', 'shop_consumables', 'primary')],
+    [sbtn('« بازگشت به منو', 'menu_main', 'primary')]
   ]);
 }
 
@@ -580,4 +594,150 @@ bot.command('buy', async (ctx) => {
   if (!p) return ctx.reply('هنوز شخصیت نساختی. اول /start رو بزن.');
   const itemId = ctx.message.text.trim().split(/\s+/)[1];
   await handleBuy(ctx, p, itemId);
-   
+});
+
+bot.command('equip', async (ctx) => {
+  const p = getPlayer(ctx);
+  if (!p) return ctx.reply('هنوز شخصیت نساختی. اول /start رو بزن.');
+  const itemId = ctx.message.text.trim().split(/\s+/)[1];
+  await handleEquip(ctx, p, itemId);
+});
+
+bot.command('use', async (ctx) => {
+  const p = getPlayer(ctx);
+  if (!p) return ctx.reply('هنوز شخصیت نساختی. اول /start رو بزن.');
+  const itemId = ctx.message.text.trim().split(/\s+/)[1];
+  await handleUse(ctx, p, itemId);
+});
+
+// ==================== منطق خرید / تجهیز / مصرف (مشترک) ====================
+
+async function handleBuy(ctx, p, itemId) {
+  const item = shopItemById(itemId);
+  if (!item) return ctx.reply('همچین آیتمی تو فروشگاه نیست.');
+  if (p.gold < item.price) {
+    return ctx.reply(`طلای کافی نداری. قیمت: ${item.price}، موجودی تو: ${p.gold}`);
+  }
+  p.gold -= item.price;
+  p.inventory.push(item.id);
+  savePlayer(ctx, p);
+  const hint = item.type === 'consumable' ? `مصرف با: /use ${item.id}` : `تجهیز با: /equip ${item.id}`;
+  await ctx.reply(`✅ *${item.label}* خریداری شد!\n${hint}`, { parse_mode: 'Markdown' });
+}
+
+async function handleEquip(ctx, p, itemId) {
+  if (!p.inventory.includes(itemId)) return ctx.reply('این آیتم رو تو کوله‌پشتیت نداری.');
+  const item = shopItemById(itemId);
+  if (!item || (item.type !== 'weapon' && item.type !== 'armor')) {
+    return ctx.reply('فقط سلاح و زره قابل تجهیزن.');
+  }
+  if (item.type === 'weapon') p.equippedWeapon = itemId;
+  else p.equippedArmor = itemId;
+  savePlayer(ctx, p);
+  await ctx.reply(`✅ *${item.label}* تجهیز شد!`, { parse_mode: 'Markdown' });
+}
+
+async function handleUse(ctx, p, itemId) {
+  if (!p.inventory.includes(itemId)) return ctx.reply('این آیتم رو تو کوله‌پشتیت نداری.');
+  const item = shopItemById(itemId);
+  if (!item || item.type !== 'consumable') return ctx.reply('این آیتم قابل مصرف نیست.');
+
+  p.inventory.splice(p.inventory.indexOf(itemId), 1);
+  
+  if (item.effect === 'heal') {
+    const healAmount = Math.round(p.maxHp * 0.4);
+    p.currentHp = Math.min(p.maxHp, p.currentHp + healAmount);
+  } else if (item.effect === 'power') {
+    p.activeEffects.power = true;
+  } else if (item.effect === 'luck') {
+    p.activeEffects.luck = true;
+  } else if (item.effect === 'revive') {
+    p.activeEffects.revive = true;
+  }
+  
+  savePlayer(ctx, p);
+  await ctx.reply(`✅ *${item.label}* مصرف شد! اثرش تا نبرد بعدی فعاله.`, { parse_mode: 'Markdown' });
+}
+
+// ==================== اکشن‌های دکمه‌های شیشه‌ای ====================
+
+bot.action('menu_main', async (ctx) => {
+  await ctx.answerCbQuery();
+  await sendMainMenu(ctx);
+});
+
+bot.action('menu_profile', async (ctx) => { 
+  await ctx.answerCbQuery(); 
+  await doProfile(ctx); 
+});
+
+bot.action('menu_inventory', async (ctx) => { 
+  await ctx.answerCbQuery(); 
+  await doInventory(ctx); 
+});
+
+bot.action('menu_fight', async (ctx) => { 
+  await ctx.answerCbQuery(); 
+  await doFight(ctx); 
+});
+
+bot.action('menu_daily', async (ctx) => { 
+  await ctx.answerCbQuery(); 
+  await doDaily(ctx); 
+});
+
+bot.action('menu_shop', async (ctx) => { 
+  await ctx.answerCbQuery(); 
+  await doShopMenu(ctx); 
+});
+
+bot.action('menu_leaderboard', async (ctx) => { 
+  await ctx.answerCbQuery(); 
+  await doLeaderboard(ctx, 'level'); 
+});
+
+bot.action('menu_help', async (ctx) => { 
+  await ctx.answerCbQuery(); 
+  await doHelp(ctx); 
+});
+
+bot.action('shop_weapons', async (ctx) => {
+  await ctx.answerCbQuery();
+  await showShopCategory(ctx, WEAPONS, '🗡 *سلاح‌ها*');
+});
+
+bot.action('shop_armors', async (ctx) => {
+  await ctx.answerCbQuery();
+  await showShopCategory(ctx, ARMORS, '🛡 *زره‌ها*');
+});
+
+bot.action('shop_consumables', async (ctx) => {
+  await ctx.answerCbQuery();
+  await showShopCategory(ctx, CONSUMABLES, '🧪 *معجون‌ها*');
+});
+
+bot.action(/^buy_(.+)$/, async (ctx) => {
+  const p = getPlayer(ctx);
+  if (!p) {
+    await ctx.answerCbQuery('اول باید شخصیت بسازی: /start', { show_alert: true });
+    return;
+  }
+  const itemId = ctx.match[1];
+  await ctx.answerCbQuery();
+  await handleBuy(ctx, p, itemId);
+});
+
+bot.action(/^lb_(level|gold|wins)$/, async (ctx) => {
+  await ctx.answerCbQuery();
+  await doLeaderboard(ctx, ctx.match[1]);
+});
+
+bot.catch((err, ctx) => {
+  console.error(`❌ خطای مدیریت‌نشده در آپدیت نوع ${ctx.updateType}:`, err.message);
+});
+
+bot.launch();
+console.log('🗡 ربات افسانه‌ی گروه (نسخه ۲) شروع شد!');
+
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
